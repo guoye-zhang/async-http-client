@@ -73,12 +73,16 @@ extension TLSConfiguration {
     /// - Returns: Future holding NWProtocolTLS Options
     func getNWProtocolTLSOptions(
         on eventLoop: EventLoop,
-        serverNameIndicatorOverride: String?
+        serverNameIndicatorOverride: String?,
+        tlsVerificationHandler: _TLSVerificationHandler? = nil
     ) -> EventLoopFuture<NWProtocolTLS.Options> {
         let promise = eventLoop.makePromise(of: NWProtocolTLS.Options.self)
         Self.tlsDispatchQueue.async {
             do {
-                let options = try self.getNWProtocolTLSOptions(serverNameIndicatorOverride: serverNameIndicatorOverride)
+                let options = try self.getNWProtocolTLSOptions(
+                    serverNameIndicatorOverride: serverNameIndicatorOverride,
+                    tlsVerificationHandler: tlsVerificationHandler
+                )
                 promise.succeed(options)
             } catch {
                 promise.fail(error)
@@ -90,7 +94,10 @@ extension TLSConfiguration {
     /// create NWProtocolTLS.Options for use with NIOTransportServices from the NIOSSL TLSConfiguration
     ///
     /// - Returns: Equivalent NWProtocolTLS Options
-    func getNWProtocolTLSOptions(serverNameIndicatorOverride: String?) throws -> NWProtocolTLS.Options {
+    func getNWProtocolTLSOptions(
+        serverNameIndicatorOverride: String?,
+        tlsVerificationHandler: _TLSVerificationHandler? = nil
+    ) throws -> NWProtocolTLS.Options {
         let options = NWProtocolTLS.Options()
 
         let useMTELGExplainer = """
@@ -178,24 +185,47 @@ extension TLSConfiguration {
             break
         }
 
-        precondition(
-            self.certificateVerification != .noHostnameVerification,
-            "TLSConfiguration.certificateVerification = .noHostnameVerification is not supported. \(useMTELGExplainer)"
-        )
-
-        if certificateVerification != .fullVerification || trustRoots != nil {
+        if certificateVerification != .fullVerification || trustRoots != nil || tlsVerificationHandler != nil {
             // add verify block to control certificate verification
             sec_protocol_options_set_verify_block(
                 options.securityProtocolOptions,
                 { _, sec_trust, sec_protocol_verify_complete in
+                    let trust = sec_trust_copy_ref(sec_trust).takeRetainedValue()
+
+                    // A caller-supplied handler replaces verification outright, exactly as a
+                    // NIOSSL custom verification callback does on the BoringSSL transport.
+                    if let tlsVerificationHandler {
+                        do {
+                            let certificates = try Self.presentedCertificates(of: trust)
+                            // `sec_protocol_verify_complete_t` is a plain Objective-C block, so it
+                            // carries no `Sendable` annotation. Network.framework allows completing
+                            // it from any context.
+                            let complete = UncheckedSendableBox(sec_protocol_verify_complete)
+                            Task {
+                                do {
+                                    let result = try await tlsVerificationHandler.verify(certificates)
+                                    complete.value(result == .certificateVerified)
+                                } catch {
+                                    complete.value(false)
+                                }
+                            }
+                        } catch {
+                            sec_protocol_verify_complete(false)
+                        }
+                        return
+                    }
+
                     guard self.certificateVerification != .none else {
                         sec_protocol_verify_complete(true)
                         return
                     }
 
-                    let trust = sec_trust_copy_ref(sec_trust).takeRetainedValue()
                     if let trustRootCertificates = secTrustRoots {
                         SecTrustSetAnchorCertificates(trust, trustRootCertificates as CFArray)
+                    }
+                    if self.certificateVerification == .noHostnameVerification {
+                        // A hostname-less SSL policy validates the chain but not the identity.
+                        SecTrustSetPolicies(trust, SecPolicyCreateSSL(true, nil))
                     }
                     if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 6.0, *) {
                         dispatchPrecondition(condition: .onQueue(Self.tlsDispatchQueue))
@@ -220,6 +250,26 @@ extension TLSConfiguration {
             )
         }
         return options
+    }
+
+    /// The certificates the peer presented, in the order it presented them.
+    private static func presentedCertificates(of trust: SecTrust) throws -> [NIOSSLCertificate] {
+        guard let secCertificates = SecTrustCopyCertificateChain(trust) as? [SecCertificate] else {
+            throw NIOSSLError.noCertificateToValidate
+        }
+        return try secCertificates.map { secCertificate in
+            let derBytes = SecCertificateCopyData(secCertificate) as Data
+            return try NIOSSLCertificate(bytes: Array(derBytes), format: .der)
+        }
+    }
+}
+
+/// Carries a value that is known-safe to use concurrently but is not statically `Sendable`.
+private struct UncheckedSendableBox<Value>: @unchecked Sendable {
+    let value: Value
+
+    init(_ value: Value) {
+        self.value = value
     }
 }
 

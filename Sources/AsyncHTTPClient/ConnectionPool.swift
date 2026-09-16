@@ -50,24 +50,29 @@ enum ConnectionPool {
         private var tlsConfiguration: BestEffortHashableTLSConfiguration?
         var serverNameIndicatorOverride: String?
         var localAddress: String?
+        /// Connections may only be shared between requests that verify the peer identically.
+        private var tlsVerificationHandler: _TLSVerificationHandler?
 
         init(
             scheme: Scheme,
             connectionTarget: ConnectionTarget,
             tlsConfiguration: BestEffortHashableTLSConfiguration? = nil,
             serverNameIndicatorOverride: String?,
-            localAddress: String? = nil
+            localAddress: String? = nil,
+            tlsVerificationHandler: _TLSVerificationHandler? = nil
         ) {
             self.scheme = scheme
             self.connectionTarget = connectionTarget
             self.tlsConfiguration = tlsConfiguration
             self.serverNameIndicatorOverride = serverNameIndicatorOverride
             self.localAddress = localAddress
+            self.tlsVerificationHandler = tlsVerificationHandler
         }
 
         var description: String {
             var hasher = Hasher()
             self.tlsConfiguration?.hash(into: &hasher)
+            self.tlsVerificationHandler?.hash(into: &hasher)
             let hash = hasher.finalize()
             let hostDescription: String
             switch self.connectionTarget {
@@ -108,7 +113,8 @@ extension ConnectionPool.Key {
         url: DeconstructedURL,
         tlsConfiguration: TLSConfiguration?,
         dnsOverride: [String: String],
-        localAddress: String? = nil
+        localAddress: String? = nil,
+        tlsVerificationHandler: _TLSVerificationHandler? = nil
     ) {
         let (connectionTarget, serverNameIndicatorOverride) = url.applyDNSOverride(dnsOverride)
         self.init(
@@ -118,7 +124,8 @@ extension ConnectionPool.Key {
                 BestEffortHashableTLSConfiguration(wrapping: $0)
             },
             serverNameIndicatorOverride: serverNameIndicatorOverride,
-            localAddress: localAddress
+            localAddress: localAddress,
+            tlsVerificationHandler: tlsVerificationHandler
         )
     }
 

@@ -60,6 +60,14 @@ public struct HTTPClientRequest: Sendable {
     /// Defaults to `nil` (use client configuration default).
     public var localAddress: String?
 
+    /// A request-specific replacement for the default TLS certificate verification.
+    ///
+    /// Requests carrying different handlers are never pooled onto the same connection.
+    ///
+    /// - Warning: This API is not guaranteed to be stable and is likely to change without
+    ///   further notice, hence the underscore prefix.
+    public var _tlsVerificationHandler: _TLSVerificationHandler?
+
     public init(url: String) {
         self.url = url
         self.method = .GET
@@ -67,6 +75,7 @@ public struct HTTPClientRequest: Sendable {
         self.body = .none
         self.tlsConfiguration = nil
         self.localAddress = nil
+        self._tlsVerificationHandler = nil
     }
 }
 

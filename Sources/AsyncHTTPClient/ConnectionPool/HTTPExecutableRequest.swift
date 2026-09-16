@@ -151,6 +151,12 @@ protocol HTTPSchedulableRequest: HTTPExecutableRequest {
     /// If you want to override the default `TLSConfiguration` ensure that this property is non nil
     var tlsConfiguration: TLSConfiguration? { get }
 
+    /// An optional replacement for the default TLS certificate verification.
+    ///
+    /// Requests carrying different handlers use different pool keys, so a connection is only
+    /// ever verified by one handler.
+    var tlsVerificationHandler: _TLSVerificationHandler? { get }
+
     /// The task's logger
     var logger: Logger { get }
 

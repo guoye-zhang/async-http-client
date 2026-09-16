@@ -31,19 +31,39 @@ extension HTTPConnectionPool {
         let key: ConnectionPool.Key
         let clientConfiguration: HTTPClient.Configuration
         let tlsConfiguration: TLSConfiguration
+        let tlsVerificationHandler: _TLSVerificationHandler?
         let sslContextCache: SSLContextCache
 
         init(
             key: ConnectionPool.Key,
             tlsConfiguration: TLSConfiguration?,
+            tlsVerificationHandler: _TLSVerificationHandler? = nil,
             clientConfiguration: HTTPClient.Configuration,
             sslContextCache: SSLContextCache
         ) {
             self.key = key
             self.clientConfiguration = clientConfiguration
             self.sslContextCache = sslContextCache
+            self.tlsVerificationHandler = tlsVerificationHandler
             self.tlsConfiguration =
                 tlsConfiguration ?? clientConfiguration.tlsConfiguration ?? .makeClientConfiguration()
+        }
+
+        /// Creates the TLS handler for a new connection, honouring ``tlsVerificationHandler``.
+        ///
+        /// NIOSSL ignores a custom verification callback when certificate verification is
+        /// disabled outright, so in that case we fall back to the plain handler.
+        func makeSSLHandler(context: NIOSSLContext, serverHostname: String?) throws -> NIOSSLClientHandler {
+            if let tlsVerificationHandler = self.tlsVerificationHandler,
+                self.tlsConfiguration.certificateVerification != .none
+            {
+                return try NIOSSLClientHandler(
+                    context: context,
+                    serverHostname: serverHostname,
+                    customVerificationCallback: tlsVerificationHandler.makeCustomVerificationCallback()
+                )
+            }
+            return try NIOSSLClientHandler(context: context, serverHostname: serverHostname)
         }
     }
 }
@@ -406,7 +426,7 @@ extension HTTPConnectionPool.ConnectionFactory {
 
             return sslContextFuture.flatMap { sslContext -> EventLoopFuture<String?> in
                 do {
-                    let sslHandler = try NIOSSLClientHandler(
+                    let sslHandler = try self.makeSSLHandler(
                         context: sslContext,
                         serverHostname: sslServerHostname
                     )
@@ -591,7 +611,8 @@ extension HTTPConnectionPool.ConnectionFactory {
             let localAddr = self.key.localAddress
             let bootstrapFuture = tlsConfig.getNWProtocolTLSOptions(
                 on: eventLoop,
-                serverNameIndicatorOverride: key.serverNameIndicatorOverride
+                serverNameIndicatorOverride: key.serverNameIndicatorOverride,
+                tlsVerificationHandler: self.tlsVerificationHandler
             ).map {
                 options -> NIOClientTCPBootstrapProtocol in
 
@@ -665,7 +686,7 @@ extension HTTPConnectionPool.ConnectionFactory {
                     sslContextFuture.flatMap { sslContext -> EventLoopFuture<Void> in
                         do {
                             let sync = channel.pipeline.syncOperations
-                            let sslHandler = try NIOSSLClientHandler(
+                            let sslHandler = try self.makeSSLHandler(
                                 context: sslContext,
                                 serverHostname: self.key.serverNameIndicator
                             )
