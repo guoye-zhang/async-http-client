@@ -65,6 +65,7 @@ extension HTTPConnectionPool {
                         sslContextCache: self.sslContextCache,
                         tlsConfiguration: request.tlsConfiguration,
                         tlsVerificationHandler: request.tlsVerificationHandler,
+                        tlsClientCertificateHandler: request.tlsClientCertificateHandler,
                         clientConfiguration: self.configuration,
                         key: poolKey,
                         delegate: self,

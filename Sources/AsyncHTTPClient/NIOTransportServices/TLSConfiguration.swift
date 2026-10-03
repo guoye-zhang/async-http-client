@@ -74,14 +74,16 @@ extension TLSConfiguration {
     func getNWProtocolTLSOptions(
         on eventLoop: EventLoop,
         serverNameIndicatorOverride: String?,
-        tlsVerificationHandler: _TLSVerificationHandler? = nil
+        tlsVerificationHandler: _TLSVerificationHandler? = nil,
+        tlsClientCertificateHandler: _TLSClientCertificateHandler? = nil
     ) -> EventLoopFuture<NWProtocolTLS.Options> {
         let promise = eventLoop.makePromise(of: NWProtocolTLS.Options.self)
         Self.tlsDispatchQueue.async {
             do {
                 let options = try self.getNWProtocolTLSOptions(
                     serverNameIndicatorOverride: serverNameIndicatorOverride,
-                    tlsVerificationHandler: tlsVerificationHandler
+                    tlsVerificationHandler: tlsVerificationHandler,
+                    tlsClientCertificateHandler: tlsClientCertificateHandler
                 )
                 promise.succeed(options)
             } catch {
@@ -96,7 +98,8 @@ extension TLSConfiguration {
     /// - Returns: Equivalent NWProtocolTLS Options
     func getNWProtocolTLSOptions(
         serverNameIndicatorOverride: String?,
-        tlsVerificationHandler: _TLSVerificationHandler? = nil
+        tlsVerificationHandler: _TLSVerificationHandler? = nil,
+        tlsClientCertificateHandler: _TLSClientCertificateHandler? = nil
     ) throws -> NWProtocolTLS.Options {
         let options = NWProtocolTLS.Options()
 
@@ -164,6 +167,40 @@ extension TLSConfiguration {
         // private key
         if self.privateKey != nil {
             preconditionFailure("TLSConfiguration.privateKey is not supported. \(useMTELGExplainer)")
+        }
+
+        // client certificate, only requested once the server asks for one
+        if let tlsClientCertificateHandler {
+            sec_protocol_options_set_challenge_block(
+                options.securityProtocolOptions,
+                { metadata, sec_protocol_challenge_complete in
+                    // The metadata is only valid for the duration of this block.
+                    var distinguishedNames: [[UInt8]] = []
+                    sec_protocol_metadata_access_distinguished_names(metadata) { distinguishedName in
+                        distinguishedNames.append(Array(distinguishedName as DispatchData))
+                    }
+                    let challenge = _TLSClientCertificateHandler.Challenge(
+                        transport: .networkFramework,
+                        distinguishedNames: distinguishedNames
+                    )
+                    // Like the verify block's completion, this is a plain Objective-C block that
+                    // Network.framework allows completing from any context. It has no way to fail
+                    // the handshake, so errors continue without a certificate.
+                    let complete = UncheckedSendableBox(sec_protocol_challenge_complete)
+                    Task {
+                        let identity = try? await tlsClientCertificateHandler.provide(challenge)
+                        switch identity?.storage {
+                        case .secIdentity(let identity, let certificateChain):
+                            complete.value(
+                                sec_identity_create_with_certificates(identity, certificateChain as CFArray)
+                            )
+                        case .nioSSL, nil:
+                            complete.value(nil)
+                        }
+                    }
+                },
+                Self.tlsDispatchQueue
+            )
         }
 
         // renegotiation support key is unsupported

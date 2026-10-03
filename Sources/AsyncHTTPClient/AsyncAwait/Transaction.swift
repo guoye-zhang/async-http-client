@@ -177,6 +177,7 @@ extension Transaction: HTTPSchedulableRequest {
     var poolKey: ConnectionPool.Key { self.request.poolKey }
     var tlsConfiguration: TLSConfiguration? { self.request.tlsConfiguration }
     var tlsVerificationHandler: _TLSVerificationHandler? { self.request.tlsVerificationHandler }
+    var tlsClientCertificateHandler: _TLSClientCertificateHandler? { self.request.tlsClientCertificateHandler }
     var requiredEventLoop: EventLoop? { nil }
 
     func requestWasQueued(_ scheduler: HTTPRequestScheduler) {

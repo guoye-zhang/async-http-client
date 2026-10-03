@@ -68,6 +68,14 @@ public struct HTTPClientRequest: Sendable {
     ///   further notice, hence the underscore prefix.
     public var _tlsVerificationHandler: _TLSVerificationHandler?
 
+    /// A request-specific source of the client certificate to present if the server asks for one.
+    ///
+    /// Requests carrying different handlers are never pooled onto the same connection.
+    ///
+    /// - Warning: This API is not guaranteed to be stable and is likely to change without
+    ///   further notice, hence the underscore prefix.
+    public var _tlsClientCertificateHandler: _TLSClientCertificateHandler?
+
     public init(url: String) {
         self.url = url
         self.method = .GET
@@ -76,6 +84,7 @@ public struct HTTPClientRequest: Sendable {
         self.tlsConfiguration = nil
         self.localAddress = nil
         self._tlsVerificationHandler = nil
+        self._tlsClientCertificateHandler = nil
     }
 }
 

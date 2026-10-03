@@ -52,6 +52,7 @@ final class HTTPConnectionPool:
         sslContextCache: SSLContextCache,
         tlsConfiguration: TLSConfiguration?,
         tlsVerificationHandler: _TLSVerificationHandler? = nil,
+        tlsClientCertificateHandler: _TLSClientCertificateHandler? = nil,
         clientConfiguration: HTTPClient.Configuration,
         key: ConnectionPool.Key,
         delegate: HTTPConnectionPoolDelegate,
@@ -63,6 +64,7 @@ final class HTTPConnectionPool:
             key: key,
             tlsConfiguration: tlsConfiguration,
             tlsVerificationHandler: tlsVerificationHandler,
+            tlsClientCertificateHandler: tlsClientCertificateHandler,
             clientConfiguration: clientConfiguration,
             sslContextCache: sslContextCache
         )

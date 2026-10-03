@@ -52,6 +52,8 @@ enum ConnectionPool {
         var localAddress: String?
         /// Connections may only be shared between requests that verify the peer identically.
         private var tlsVerificationHandler: _TLSVerificationHandler?
+        /// Connections may only be shared between requests that present the same client certificate.
+        private var tlsClientCertificateHandler: _TLSClientCertificateHandler?
 
         init(
             scheme: Scheme,
@@ -59,7 +61,8 @@ enum ConnectionPool {
             tlsConfiguration: BestEffortHashableTLSConfiguration? = nil,
             serverNameIndicatorOverride: String?,
             localAddress: String? = nil,
-            tlsVerificationHandler: _TLSVerificationHandler? = nil
+            tlsVerificationHandler: _TLSVerificationHandler? = nil,
+            tlsClientCertificateHandler: _TLSClientCertificateHandler? = nil
         ) {
             self.scheme = scheme
             self.connectionTarget = connectionTarget
@@ -67,12 +70,14 @@ enum ConnectionPool {
             self.serverNameIndicatorOverride = serverNameIndicatorOverride
             self.localAddress = localAddress
             self.tlsVerificationHandler = tlsVerificationHandler
+            self.tlsClientCertificateHandler = tlsClientCertificateHandler
         }
 
         var description: String {
             var hasher = Hasher()
             self.tlsConfiguration?.hash(into: &hasher)
             self.tlsVerificationHandler?.hash(into: &hasher)
+            self.tlsClientCertificateHandler?.hash(into: &hasher)
             let hash = hasher.finalize()
             let hostDescription: String
             switch self.connectionTarget {
@@ -114,7 +119,8 @@ extension ConnectionPool.Key {
         tlsConfiguration: TLSConfiguration?,
         dnsOverride: [String: String],
         localAddress: String? = nil,
-        tlsVerificationHandler: _TLSVerificationHandler? = nil
+        tlsVerificationHandler: _TLSVerificationHandler? = nil,
+        tlsClientCertificateHandler: _TLSClientCertificateHandler? = nil
     ) {
         let (connectionTarget, serverNameIndicatorOverride) = url.applyDNSOverride(dnsOverride)
         self.init(
@@ -125,7 +131,8 @@ extension ConnectionPool.Key {
             },
             serverNameIndicatorOverride: serverNameIndicatorOverride,
             localAddress: localAddress,
-            tlsVerificationHandler: tlsVerificationHandler
+            tlsVerificationHandler: tlsVerificationHandler,
+            tlsClientCertificateHandler: tlsClientCertificateHandler
         )
     }
 

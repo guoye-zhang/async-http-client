@@ -90,6 +90,9 @@ final class RequestBag<Delegate: HTTPClientResponseDelegate & Sendable>: Sendabl
     /// The legacy `HTTPClient.Request` API has no way to express a custom verification handler.
     var tlsVerificationHandler: _TLSVerificationHandler? { nil }
 
+    /// The legacy `HTTPClient.Request` API has no way to express a client certificate handler.
+    var tlsClientCertificateHandler: _TLSClientCertificateHandler? { nil }
+
     init(
         request: HTTPClient.Request,
         eventLoopPreference: HTTPClient.EventLoopPreference,

@@ -714,6 +714,8 @@ final class MockHTTPScheduableRequest: HTTPSchedulableRequest {
     }
 
     var tlsConfiguration: TLSConfiguration? { nil }
+    var tlsVerificationHandler: _TLSVerificationHandler? { nil }
+    var tlsClientCertificateHandler: _TLSClientCertificateHandler? { nil }
 
     func requestWasQueued(_: HTTPRequestScheduler) {
         preconditionFailure("Unimplemented")

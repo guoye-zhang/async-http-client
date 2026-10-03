@@ -32,12 +32,14 @@ extension HTTPConnectionPool {
         let clientConfiguration: HTTPClient.Configuration
         let tlsConfiguration: TLSConfiguration
         let tlsVerificationHandler: _TLSVerificationHandler?
+        let tlsClientCertificateHandler: _TLSClientCertificateHandler?
         let sslContextCache: SSLContextCache
 
         init(
             key: ConnectionPool.Key,
             tlsConfiguration: TLSConfiguration?,
             tlsVerificationHandler: _TLSVerificationHandler? = nil,
+            tlsClientCertificateHandler: _TLSClientCertificateHandler? = nil,
             clientConfiguration: HTTPClient.Configuration,
             sslContextCache: SSLContextCache
         ) {
@@ -45,8 +47,15 @@ extension HTTPConnectionPool {
             self.clientConfiguration = clientConfiguration
             self.sslContextCache = sslContextCache
             self.tlsVerificationHandler = tlsVerificationHandler
-            self.tlsConfiguration =
+            self.tlsClientCertificateHandler = tlsClientCertificateHandler
+            var tlsConfiguration =
                 tlsConfiguration ?? clientConfiguration.tlsConfiguration ?? .makeClientConfiguration()
+            if let tlsClientCertificateHandler {
+                // Built once per pool, so that every connection reuses the same closure and
+                // therefore hits the same cached `NIOSSLContext`.
+                tlsConfiguration.sslContextCallback = tlsClientCertificateHandler.makeSSLContextCallback()
+            }
+            self.tlsConfiguration = tlsConfiguration
         }
 
         /// Creates the TLS handler for a new connection, honouring ``tlsVerificationHandler``.
@@ -612,7 +621,8 @@ extension HTTPConnectionPool.ConnectionFactory {
             let bootstrapFuture = tlsConfig.getNWProtocolTLSOptions(
                 on: eventLoop,
                 serverNameIndicatorOverride: key.serverNameIndicatorOverride,
-                tlsVerificationHandler: self.tlsVerificationHandler
+                tlsVerificationHandler: self.tlsVerificationHandler,
+                tlsClientCertificateHandler: self.tlsClientCertificateHandler
             ).map {
                 options -> NIOClientTCPBootstrapProtocol in
 

@@ -50,6 +50,7 @@ extension HTTPClientRequest {
         var body: Body?
         var tlsConfiguration: TLSConfiguration?
         var tlsVerificationHandler: _TLSVerificationHandler?
+        var tlsClientCertificateHandler: _TLSClientCertificateHandler?
     }
 }
 
@@ -87,7 +88,8 @@ extension HTTPClientRequest.Prepared {
                 tlsConfiguration: request.tlsConfiguration,
                 dnsOverride: dnsOverride,
                 localAddress: request.localAddress ?? localAddress,
-                tlsVerificationHandler: request._tlsVerificationHandler
+                tlsVerificationHandler: request._tlsVerificationHandler,
+                tlsClientCertificateHandler: request._tlsClientCertificateHandler
             ),
             requestFramingMetadata: metadata,
             head: .init(
@@ -98,7 +100,8 @@ extension HTTPClientRequest.Prepared {
             ),
             body: request.body.map { .init($0) },
             tlsConfiguration: request.tlsConfiguration,
-            tlsVerificationHandler: request._tlsVerificationHandler
+            tlsVerificationHandler: request._tlsVerificationHandler,
+            tlsClientCertificateHandler: request._tlsClientCertificateHandler
         )
     }
 }
@@ -166,6 +169,8 @@ extension HTTPClientRequest {
         newRequest.body = body
         newRequest.localAddress = self.localAddress
         newRequest.tlsConfiguration = self.tlsConfiguration
+        newRequest._tlsVerificationHandler = self._tlsVerificationHandler
+        newRequest._tlsClientCertificateHandler = self._tlsClientCertificateHandler
         return newRequest
     }
 }

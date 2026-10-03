@@ -157,6 +157,12 @@ protocol HTTPSchedulableRequest: HTTPExecutableRequest {
     /// ever verified by one handler.
     var tlsVerificationHandler: _TLSVerificationHandler? { get }
 
+    /// An optional source of the client certificate to present if the server asks for one.
+    ///
+    /// Requests carrying different handlers use different pool keys, so a connection only ever
+    /// presents one handler's certificate.
+    var tlsClientCertificateHandler: _TLSClientCertificateHandler? { get }
+
     /// The task's logger
     var logger: Logger { get }
 
